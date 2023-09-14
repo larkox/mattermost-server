@@ -1,6 +1,8 @@
-package ahocosarick
+package ahocorasick
 
-import "strings"
+import (
+	"strings"
+)
 
 type Node struct {
 	Edges map[string]*Node
@@ -58,9 +60,10 @@ func (n *Node) addString(keywordTerms KeywordString, value LeafObject, prefix st
 		if currentKeywordTerm.CaseInsensitive {
 			lowercaseTerm := strings.ToLower(edgeCharacter)
 			uppercaseTerm := strings.ToUpper(edgeCharacter)
-			handleCharacterAdd(n, lowercaseTerm, prefix, rest, restKeywordTerms, value, true)
 			if lowercaseTerm != uppercaseTerm {
-				handleCharacterAdd(n, uppercaseTerm, prefix, rest, restKeywordTerms, value, true)
+				handleCharacterAdd(n, "x"+lowercaseTerm, prefix, rest, restKeywordTerms, value, true)
+			} else {
+				handleCharacterAdd(n, lowercaseTerm, prefix, rest, restKeywordTerms, value, true)
 			}
 		} else {
 			handleCharacterAdd(n, edgeCharacter, prefix, rest, restKeywordTerms, value, false)
@@ -112,6 +115,13 @@ func (n *Node) RemoveString(keywordTerms KeywordString, value LeafObject) {
 		}
 
 		edgeCharacter := currentKeywordTerm.Term[:1]
+		if currentKeywordTerm.CaseInsensitive {
+			lowercase := strings.ToLower(edgeCharacter)
+			uppercase := strings.ToUpper(edgeCharacter)
+			if lowercase != uppercase {
+				edgeCharacter = "x" + edgeCharacter
+			}
+		}
 		rest := currentKeywordTerm.Term[1:]
 		if node, ok := n.Edges[edgeCharacter]; ok {
 			node.RemoveString(append(KeywordString{{Type: "string", Term: rest}}, restKeywordTerms...), value)
@@ -178,6 +188,8 @@ func (n *Node) Search(text string) []*Leaf {
 		}
 		for pNode := range processingNodes {
 			processEdge(pNode, edgeCharacter)
+			lowercase := strings.ToLower(edgeCharacter)
+			processEdge(pNode, "x"+lowercase)
 
 			if isAlphanumeric(asRune) {
 				processEdge(pNode, "alphanumeric")

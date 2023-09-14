@@ -1,4 +1,4 @@
-package ahocosarick
+package ahocorasick
 
 import "unicode"
 

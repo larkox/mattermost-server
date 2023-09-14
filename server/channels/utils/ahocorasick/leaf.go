@@ -1,4 +1,4 @@
-package ahocosarick
+package ahocorasick
 
 type Leaf struct {
 	Term   string
