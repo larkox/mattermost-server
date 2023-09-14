@@ -31,6 +31,9 @@ func TestSearch(t *testing.T) {
 		KeywordTerm{Type: "wordseparator*"},
 		KeywordTerm{Type: "string", Term: "foo"},
 	}, LeafObject{UserID: "user7", MentionType: 7})
+	tree.AddString(KeywordString{
+		KeywordTerm{Type: "string", Term: "hi-world", CaseInsensitive: true},
+	}, LeafObject{UserID: "user8", MentionType: 8})
 
 	leaves := tree.Search("hello my dear friend and good bye")
 	require.Len(t, leaves, 3, "all three strings are found once")
@@ -44,6 +47,9 @@ func TestSearch(t *testing.T) {
 	require.Len(t, leaves, 1)
 	require.Equal(t, "bye", leaves[0].Term)
 	require.Equal(t, "user3", leaves[0].Values[0].UserID)
+
+	leaves = tree.Search("Bye my darling")
+	require.Len(t, leaves, 0)
 
 	leaves = tree.Search("some2thing my darling")
 	require.Len(t, leaves, 1)
@@ -77,4 +83,14 @@ func TestSearch(t *testing.T) {
 	require.Len(t, leaves, 1)
 	require.Equal(t, "foo{{wordseparator*}}foo", leaves[0].Term)
 	require.Equal(t, "user7", leaves[0].Values[0].UserID)
+
+	leaves = tree.Search("hi-world")
+	require.Len(t, leaves, 1)
+	require.Equal(t, "hi-world", leaves[0].Term)
+	require.Equal(t, "user8", leaves[0].Values[0].UserID)
+
+	leaves = tree.Search("Hi-WoRlD")
+	require.Len(t, leaves, 1)
+	require.Equal(t, "Hi-WoRlD", leaves[0].Term)
+	require.Equal(t, "user8", leaves[0].Values[0].UserID)
 }

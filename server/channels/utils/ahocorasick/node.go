@@ -1,5 +1,7 @@
 package ahocosarick
 
+import "strings"
+
 type Node struct {
 	Edges map[string]*Node
 	Leaf  *Leaf
@@ -15,12 +17,24 @@ func NewNode() *Node {
 type KeywordString []KeywordTerm
 
 type KeywordTerm struct {
-	Type string
-	Term string
+	Type            string
+	Term            string
+	CaseInsensitive bool
 }
 
 func (n *Node) AddString(keywordTerms KeywordString, value LeafObject) {
 	n.addString(keywordTerms, value, "")
+}
+
+func handleCharacterAdd(n *Node, edgeCharacter string, prefix string, rest string, restKeywordTerms KeywordString, value LeafObject, caseInsensitive bool) {
+	node, ok := n.Edges[edgeCharacter]
+	if !ok {
+		node = NewNode()
+		node.Leaf.Term = prefix + edgeCharacter
+		n.Edges[edgeCharacter] = node
+	}
+
+	node.addString(append(KeywordString{{Type: "string", Term: rest, CaseInsensitive: caseInsensitive}}, restKeywordTerms...), value, prefix+edgeCharacter)
 }
 
 func (n *Node) addString(keywordTerms KeywordString, value LeafObject, prefix string) {
@@ -41,14 +55,17 @@ func (n *Node) addString(keywordTerms KeywordString, value LeafObject, prefix st
 
 		edgeCharacter := currentKeywordTerm.Term[:1]
 		rest := currentKeywordTerm.Term[1:]
-		node, ok := n.Edges[edgeCharacter]
-		if !ok {
-			node = NewNode()
-			node.Leaf.Term = prefix + edgeCharacter
-			n.Edges[edgeCharacter] = node
+		if currentKeywordTerm.CaseInsensitive {
+			lowercaseTerm := strings.ToLower(edgeCharacter)
+			uppercaseTerm := strings.ToUpper(edgeCharacter)
+			handleCharacterAdd(n, lowercaseTerm, prefix, rest, restKeywordTerms, value, true)
+			if lowercaseTerm != uppercaseTerm {
+				handleCharacterAdd(n, uppercaseTerm, prefix, rest, restKeywordTerms, value, true)
+			}
+		} else {
+			handleCharacterAdd(n, edgeCharacter, prefix, rest, restKeywordTerms, value, false)
 		}
 
-		node.addString(append(KeywordString{{Type: "string", Term: rest}}, restKeywordTerms...), value, prefix+edgeCharacter)
 	case "alphanumeric":
 		fallthrough
 	case "wordseparator":
@@ -129,14 +146,14 @@ func (n *Node) Search(text string) []*Leaf {
 	var asRune rune
 	rest := text
 	leaves := map[*Leaf]struct{}{}
-	processingNodes := []*Node{n}
-	var newProcessingNodes []*Node
+	processingNodes := map[*Node]struct{}{n: {}}
+	var newProcessingNodes map[*Node]struct{}
 	processEdge := func(pNode *Node, edgeCharacter string) {
 		if node, ok := pNode.Edges[edgeCharacter]; ok {
 			if node.Leaf.HasValues() {
 				leaves[node.Leaf] = struct{}{}
 			}
-			newProcessingNodes = append(newProcessingNodes, node)
+			newProcessingNodes[node] = struct{}{}
 		}
 	}
 
@@ -149,17 +166,17 @@ func (n *Node) Search(text string) []*Leaf {
 		for _, c := range edgeCharacter {
 			asRune = c
 		}
-		newProcessingNodes = []*Node{n}
+		newProcessingNodes = map[*Node]struct{}{n: {}}
 		if firstRun {
 			firstRun = false
 			if !isWordSeparator(asRune) {
 				processEdge(n, "wordseparator")
 				processEdge(n, "wordseparator*")
 				processingNodes = newProcessingNodes
-				newProcessingNodes = []*Node{n}
+				newProcessingNodes = map[*Node]struct{}{n: {}}
 			}
 		}
-		for _, pNode := range processingNodes {
+		for pNode := range processingNodes {
 			processEdge(pNode, edgeCharacter)
 
 			if isAlphanumeric(asRune) {
@@ -175,7 +192,7 @@ func (n *Node) Search(text string) []*Leaf {
 	}
 
 	if !isWordSeparator(asRune) {
-		for _, pNode := range processingNodes {
+		for pNode := range processingNodes {
 			processEdge(pNode, "wordseparator")
 			processEdge(pNode, "wordseparator*")
 		}
