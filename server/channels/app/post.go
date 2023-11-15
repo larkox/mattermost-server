@@ -2233,10 +2233,23 @@ func (a *App) GetPostInfo(c request.CTX, postID string) (*model.PostInfo, *model
 			return nil, appErr
 		}
 
-		if team.Type == model.TeamOpen {
-			hasPermissionToAccessTeam = a.HasPermissionToTeam(c, userID, team.Id, model.PermissionJoinPublicTeams)
-		} else if team.Type == model.TeamInvite {
-			hasPermissionToAccessTeam = a.HasPermissionToTeam(c, userID, team.Id, model.PermissionJoinPrivateTeams)
+		teamMember, appErr := a.GetTeamMember(c, channel.TeamId, userID)
+		if appErr != nil && appErr.StatusCode != http.StatusNotFound {
+			return nil, appErr
+		}
+
+		if appErr == nil {
+			if teamMember.DeleteAt == 0 {
+				hasPermissionToAccessTeam = true
+			}
+		}
+
+		if !hasPermissionToAccessTeam {
+			if team.AllowOpenInvite {
+				hasPermissionToAccessTeam = a.HasPermissionToTeam(c, userID, team.Id, model.PermissionJoinPublicTeams)
+			} else {
+				hasPermissionToAccessTeam = a.HasPermissionToTeam(c, userID, team.Id, model.PermissionJoinPrivateTeams)
+			}
 		}
 	} else {
 		// This happens in case of DMs and GMs.
@@ -2269,12 +2282,17 @@ func (a *App) GetPostInfo(c request.CTX, postID string) (*model.PostInfo, *model
 		HasJoinedChannel:   channelMemberErr == nil,
 	}
 	if team != nil {
-		_, teamMemberErr := a.GetTeamMember(c, team.Id, userID)
+		teamMember, teamMemberErr := a.GetTeamMember(c, team.Id, userID)
+
+		teamType := model.TeamInvite
+		if team.AllowOpenInvite {
+			teamType = model.TeamOpen
+		}
 
 		info.TeamId = team.Id
-		info.TeamType = team.Type
+		info.TeamType = teamType
 		info.TeamDisplayName = team.DisplayName
-		info.HasJoinedTeam = teamMemberErr == nil
+		info.HasJoinedTeam = teamMemberErr == nil && teamMember.DeleteAt == 0
 	}
 	return &info, nil
 }
